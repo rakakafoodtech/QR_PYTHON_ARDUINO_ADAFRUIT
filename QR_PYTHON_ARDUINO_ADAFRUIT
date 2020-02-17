@@ -1,0 +1,116 @@
+from __future__ import print_function
+from IPython import display
+from io import BytesIO
+import pyzbar.pyzbar as pyzbar
+import numpy as np
+import cv2
+from matplotlib import pyplot as plt
+import time
+import pyfirmata
+import paho.mqtt.client as mqtt
+from Adafruit_IO import *
+
+ADAFRUIT_IO_KEY = "ENTER YOUR KEY"
+ADAFRUIT_IO_USERNAME = "ENTER YOUR USERNAME"
+
+aio = Client('ADAFRUIT_IO_USERNAME','ADAFRUIT_IO_KEY')
+
+
+while True:
+        board = pyfirmata.Arduino('/dev/ttyACM0')
+        pin4 = board.get_pin('d:4:o')
+        pin8 = board.get_pin('d:8:o')
+
+        output_data = -1
+
+        pin4.write(0)
+        pin8.write(0)
+        def decode(im):
+            # Find barcodes and QR codes
+            decodedObjects = pyzbar.decode(im)
+
+            # Print results
+            for obj in decodedObjects:
+                print('Type : ', obj.type)
+                print('Data : ', obj.data, '\n')
+                output_data = str(obj.data.decode("utf-8"))
+                # return decodedObjects
+                print('x_data', output_data)
+                # return decodedObjects
+
+                print(type(output_data))
+
+                if output_data == '1':
+                    pin4.write(1)
+                    print("led 1 is high")
+                    time.sleep(1)
+                    pin4.write(0)
+                elif output_data == '2':
+                    pin8.write(1)
+                    print("led 2 is high")
+                    time.sleep(1)
+                    pin8.write(0)
+                else:
+                    print("wrong choice")
+                return decodedObjects
+
+        # Display barcode and QR code location
+        def display(im, decodedObjects):
+            # Loop over all decoded objects
+            for decodedObject in decodedObjects:
+                points = decodedObject.polygon
+            # If the points do not form a quad, find convex hull
+            if len(points) > 4:
+                hull = cv2.convexHull(
+                    np.array([point for point in points], dtype=np.float32))
+                hull = list(map(tuple, np.squeeze(hull)))
+            else:
+                hull = points
+
+            # Number of points in the convex hull
+            n = len(hull)
+
+            # Draw the convext hull
+            for j in range(0, n):
+                cv2.line(im, hull[j], hull[(j+1) % n], (255, 0, 0), 3)
+
+            # Display results
+            cv2.imshow("Results", im)
+            cv2.waitKey(0)
+
+        vc = cv2.VideoCapture(0)
+
+        if vc.isOpened():  # try to get the first frame
+            is_capturing, frame = vc.read()
+            # makes the blues image look real colored
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        #     webcam_preview = plt.imshow(frame)
+
+        else:
+            is_capturing = False
+            
+         while True:
+          controlling = aio.receive('divya').value
+          print (controlling)
+          frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#         vc = cv2.VideoCapture(0)
+#         is_capturing, frame = vc.read()
+
+
+          while controlling == 'ON':
+                is_capturing, frame = vc.read()
+                # makes the blues image look real colored
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                 # webcam_preview.set_data(frame)
+               # plt.draw()
+                decodedObjects = decode(frame)
+                plt.pause(0.1)    # 
+                break
+          else:
+           #is_capturing, frame = vc.read()
+           frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#           decodedObjects = decode(frame)
+#           plt.pause(0.1)    
+           vc.release()
+           break
